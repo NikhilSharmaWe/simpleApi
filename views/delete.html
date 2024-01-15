@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DELETE</title>
+</head>
+<body>
+   
+    <form method="post" action="/api/students" id="myForm">
+        <input type="text" name="id" id="idInput" placeholder="id" required>
+        <input type="submit" value="Submit">
+    </form>
+    
+    <h2><a href="/logout">logout</a></h2>
+      
+      <script>
+        document.getElementById('myForm').addEventListener('submit', function(event) {
+            event.preventDefault(); 
+
+            const idValue = document.getElementById('idInput').value;
+
+            fetch(`/api/students/${idValue}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            })
+        });
+      </script>
+</body>
+</html>
