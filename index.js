@@ -75,8 +75,6 @@ app.post('/login', async (req, res) => {
         res.status(400)
         res.send({error : "user not found" })
     }
-
-    
 });
 
 app.get('/login', (req, res) => {
@@ -123,94 +121,3 @@ app.get('/logout', (req, res) => {
     res.cookie('isAuthenticated', false);
     res.redirect('/login')
 });
-
-app.get('/methods', (req, res) => {
-    res.sendFile(__dirname + '/views/methods.html');
-});
-
-app.get('/methods/:method', (req, res) => {
-    const method = req.params.method;
-    const allowedMethods = ['post', 'put', 'delete'];
-
-    if (allowedMethods.includes(method)) {
-        res.sendFile(__dirname + `/views/${method}.html`);
-    } else {
-        res.status(404).send('Not Found');
-    }
-});
-
-app.get("/api/students", async (req,res)=>{
-    try {
-        const students = await studentsCollection.find().toArray();
-        res.json(students);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-})
-
-app.post("/api/students", async (req,res)=>{
-    try {
-        if (!req.body.email) {
-            res.status(400);
-            return res.json({ error: "email is required" });
-        }
-
-        const user = {
-            first_name: req.body.first_name,
-            last_name: req.body.last_name,
-            email: req.body.email,
-        };
-
-        await studentsCollection.insertOne(user);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-})
-
-
-
-app.put("/api/students/:id", async (req,res) =>{
-    const studentId = req.params.id;
-    const { first_name, last_name, email } = req.body;
-
-    try {
-        const existingStudent = await studentsCollection.findOne({ _id: new ObjectId(studentId) });
-
-        if (!existingStudent) {
-            throw new CustomError('Student not found');
-        }
-
-        const result = await studentsCollection.updateOne(
-            { _id: new ObjectId(studentId) },
-            { $set: { first_name, last_name, email } }
-        );
-
-        if (result.modifiedCount > 0) {
-            res.json({ message: 'Student updated successfully' });
-        } else {
-            res.status(404).json({ error: 'Student not found' });
-        }
-    } catch (error) {
-        res.status(400)
-        res.send({error : error })
-    }
-})
-
-app.delete("/api/students/:id" , async (req,res)=>{
-    const studentId = req.params.id;
-
-    try {
-        const result = await studentsCollection.deleteOne({ _id: new ObjectId(studentId) });
-
-        if (result.deletedCount > 0) {
-            res.json({ message: 'Student deleted successfully' });
-        } else {
-            res.status(404).json({ error: 'Student not found' });
-        }
-    } catch (error) {
-        console.error('Error deleting student:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-})
