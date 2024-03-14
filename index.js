@@ -1,23 +1,33 @@
-class CustomError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = this.constructor.name;
-    }
-}
-
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { MongoClient, ObjectId } = require('mongodb');
+const nodemailer = require('nodemailer'); 
+require('dotenv').config();
+
 
 const mongoUri = 'mongodb://127.0.0.1:27017'; 
 const dbName = 'simpleApi'; 
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_ID,
+        pass: process.env.APP_PASSWORD,
+    }
+})
+
+const mail = {
+    to: "",
+    from: process.env.EMAIL_ID,
+    subject: "OTP",
+    text: ""
+}
+
 
 let studentsCollection;
 let usersCollection;
-
 async function connectToMongo() {
     try {
-        const client = await MongoClient.connect(mongoUri, { useNewUrlParser: true });
+        const client = await MongoClient.connect(mongoUri);
         console.log("Connected to MongoDB");
 
         const db = client.db(dbName);
@@ -31,20 +41,37 @@ async function connectToMongo() {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser(process.env.SECRET_KEY));
 
 app.listen(3000 ,  async()=>{
     console.log("listening on port 3000")
     await connectToMongo(); 
 })
 
-
-
 function authenticate(req, res, next) {
     if (req.cookies.isAuthenticated === 'true') {
         next();
     } else {
         res.redirect('/login');
+    }
+}
+
+function generateOTP(length) {
+    var digits = '0123456789';
+    let OTP = '';
+    for (let i = 0; i < length; i++ ) {
+        OTP += digits[Math.floor(Math.random() * 10)];
+    }
+    return OTP;
+}
+
+function createEmail(emailId, otp) {
+
+    return mail = {
+        to: emailId,
+        from: process.env.EMAIL_ID,
+        subject: "OTP",
+        text: otp
     }
 }
 
@@ -60,12 +87,20 @@ app.post('/login', async (req, res) => {
         const user = await usersCollection.findOne({ username: username });
 
         if (!user) {
-            throw new CustomError('user not found');
+            
+            res.status(400)
+            res.send({error : "user not found" })
         }
 
         if (username == user.username && password == user.password) {
-            res.cookie('isAuthenticated', true);
-            res.redirect('/methods')
+            const otp = generateOTP(5)
+            res.cookie('otp', otp)
+            res.cookie('email', user.email)
+            transporter.sendMail(createEmail(user.email, otp))
+            res.sendFile(__dirname + '/views/verify_otp.html');
+
+            // res.cookie('isAuthenticated', true);
+            // res.redirect('/methods')
         } else {
             res.status(400)
             res.send({error : "invalid credentials" })
@@ -77,6 +112,23 @@ app.post('/login', async (req, res) => {
     }
 
     
+});
+
+app.post('/verify-otp', (req, res) => {
+    if (req.cookies.isAuthenticated == 'true') {
+        res.redirect('/methods');
+    } else{
+        res.sendFile(__dirname + '/views/login.html');
+    }
+
+    if (req.body.otp === req.cookies.otp) {
+        res.cookie('isAuthenticated', true);
+        res.sendFile('/views/home.html')
+    } else {
+        res.status(400)
+        res.send({error : "invalid otp" })
+    }
+
 });
 
 app.get('/login', (req, res) => {
@@ -109,8 +161,13 @@ app.post("/api/user", async (req,res)=>{
         };
 
         await usersCollection.insertOne(user);
-        res.status(200)
-        res.send({message: 'Student updated successfully' })
+        const otp = generateOTP(5)
+        res.cookie('otp', otp)
+        res.cookie('email', user.email)
+        transporter.sendMail(createEmail(user.email, otp))
+        res.sendFile(__dirname + '/views/verify_otp.html');
+        // res.status(200)
+        // res.send({message: 'use signed up successfully' })
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -124,93 +181,3 @@ app.get('/logout', (req, res) => {
     res.redirect('/login')
 });
 
-app.get('/methods', (req, res) => {
-    res.sendFile(__dirname + '/views/methods.html');
-});
-
-app.get('/methods/:method', (req, res) => {
-    const method = req.params.method;
-    const allowedMethods = ['post', 'put', 'delete'];
-
-    if (allowedMethods.includes(method)) {
-        res.sendFile(__dirname + `/views/${method}.html`);
-    } else {
-        res.status(404).send('Not Found');
-    }
-});
-
-app.get("/api/students", async (req,res)=>{
-    try {
-        const students = await studentsCollection.find().toArray();
-        res.json(students);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-})
-
-app.post("/api/students", async (req,res)=>{
-    try {
-        if (!req.body.email) {
-            res.status(400);
-            return res.json({ error: "email is required" });
-        }
-
-        const user = {
-            first_name: req.body.first_name,
-            last_name: req.body.last_name,
-            email: req.body.email,
-        };
-
-        await studentsCollection.insertOne(user);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-})
-
-
-
-app.put("/api/students/:id", async (req,res) =>{
-    const studentId = req.params.id;
-    const { first_name, last_name, email } = req.body;
-
-    try {
-        const existingStudent = await studentsCollection.findOne({ _id: new ObjectId(studentId) });
-
-        if (!existingStudent) {
-            throw new CustomError('Student not found');
-        }
-
-        const result = await studentsCollection.updateOne(
-            { _id: new ObjectId(studentId) },
-            { $set: { first_name, last_name, email } }
-        );
-
-        if (result.modifiedCount > 0) {
-            res.json({ message: 'Student updated successfully' });
-        } else {
-            res.status(404).json({ error: 'Student not found' });
-        }
-    } catch (error) {
-        res.status(400)
-        res.send({error : error })
-    }
-})
-
-app.delete("/api/students/:id" , async (req,res)=>{
-    const studentId = req.params.id;
-
-    try {
-        const result = await studentsCollection.deleteOne({ _id: new ObjectId(studentId) });
-
-        if (result.deletedCount > 0) {
-            res.json({ message: 'Student deleted successfully' });
-        } else {
-            res.status(404).json({ error: 'Student not found' });
-        }
-    } catch (error) {
-        console.error('Error deleting student:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-})

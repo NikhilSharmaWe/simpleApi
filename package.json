@@ -9,8 +9,10 @@
   "license": "ISC",
   "dependencies": {
     "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "mongodb": "^6.3.0",
+    "nodemailer": "^6.9.12",
     "nodemon": "^3.0.2"
   },
   "repository": {
@@ -21,5 +23,6 @@
     "url": "https://github.com/NikhilSharmaWe/simpleApi/issues"
   },
   "homepage": "https://github.com/NikhilSharmaWe/simpleApi#readme",
+  "keywords": [],
   "description": ""
 }
